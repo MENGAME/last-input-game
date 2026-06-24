@@ -1,0 +1,33 @@
+# Нормализовать переносы строк автоматически
+* text=auto
+
+# Windows-скрипты — всегда CRLF в рабочей копии
+*.bat  text eol=crlf
+*.cmd  text eol=crlf
+*.ps1  text eol=crlf
+
+# Исходники и конфиги — текст
+*.cpp  text
+*.h    text
+*.cs   text
+*.ini  text
+*.md   text
+*.gitignore     text
+*.gitattributes text
+
+# Unreal-ассеты — бинарные, git их не трогает и не диффит
+*.uasset binary
+*.umap   binary
+*.upk    binary
+*.udk    binary
+
+# Прочие бинарники
+*.png binary
+*.jpg binary
+*.tga binary
+*.wav binary
+*.fbx binary
+*.dll binary
+*.pdb binary
+*.exe binary
+*.lib binary

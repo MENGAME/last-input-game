@@ -8,103 +8,56 @@ URailMovementComponent::URailMovementComponent()
 	PrimaryComponentTick.bCanEverTick = true;
 }
 
-void URailMovementComponent::BeginPlay()
-{
-	Super::BeginPlay();
-
-	if (!SplineComponent && bAutoFindSplineOnOwner)
-	{
-		if (AActor* Owner = GetOwner())
-		{
-			SplineComponent = Owner->FindComponentByClass<USplineComponent>();
-		}
-	}
-
-	ClampDistanceToSpline();
-	ApplySplineTransformToOwner();
-}
-
 void URailMovementComponent::TickComponent(float DeltaTime, ELevelTick TickType, FActorComponentTickFunction* ThisTickFunction)
 {
 	Super::TickComponent(DeltaTime, TickType, ThisTickFunction);
 
-	if (!SplineComponent || DeltaTime <= 0.0f)
+	if (!bMovementEnabled)
 	{
 		return;
 	}
 
-	AdvanceAlongSpline(DeltaTime);
-	ApplySplineTransformToOwner();
-}
-
-void URailMovementComponent::SetSplineComponent(USplineComponent* NewSplineComponent)
-{
-	SplineComponent = NewSplineComponent;
-	ClampDistanceToSpline();
-	ApplySplineTransformToOwner();
-}
-
-void URailMovementComponent::SetCurrentDistanceOnSpline(float NewDistance)
-{
-	CurrentDistanceOnSpline = NewDistance;
-	ClampDistanceToSpline();
-	ApplySplineTransformToOwner();
-}
-
-float URailMovementComponent::GetMovementSpeed(float DeltaTime) const
-{
-	// DeltaTime is accepted now so acceleration can be added here later.
-	(void)DeltaTime;
-	return Speed;
-}
-
-void URailMovementComponent::AdvanceAlongSpline(float DeltaTime)
-{
-	const float SplineLength = SplineComponent->GetSplineLength();
-	if (SplineLength <= KINDA_SMALL_NUMBER)
+	AActor* Owner = GetOwner();
+	if (!Owner || !RailSpline)
 	{
-		CurrentDistanceOnSpline = 0.0f;
 		return;
 	}
 
-	CurrentDistanceOnSpline += GetMovementSpeed(DeltaTime) * DeltaTime;
+	Speed = FMath::Clamp(Speed, MinSpeed, MaxSpeed);
 
-	if (bLoop)
-	{
-		CurrentDistanceOnSpline = FMath::Fmod(CurrentDistanceOnSpline, SplineLength);
-		if (CurrentDistanceOnSpline < 0.0f)
-		{
-			CurrentDistanceOnSpline += SplineLength;
-		}
-	}
-	else
-	{
-		ClampDistanceToSpline();
-	}
+	const float StepDeltaTime = FMath::Min(DeltaTime, MaxStepDeltaTime);
+	CurrentDistanceAlongSpline += Speed * StepDeltaTime;
+
+	const FVector Location = RailSpline->GetLocationAtDistanceAlongSpline(CurrentDistanceAlongSpline, ESplineCoordinateSpace::World);
+	const FRotator Rotation = RailSpline->GetRotationAtDistanceAlongSpline(CurrentDistanceAlongSpline, ESplineCoordinateSpace::World);
+
+	Owner->SetActorLocation(Location);
+	Owner->SetActorRotation(Rotation);
 }
 
-void URailMovementComponent::ApplySplineTransformToOwner() const
+void URailMovementComponent::SnapToSpline()
 {
 	AActor* Owner = GetOwner();
-	if (!Owner || !SplineComponent)
+	if (!Owner || !RailSpline)
 	{
 		return;
 	}
 
-	const FVector Location = SplineComponent->GetLocationAtDistanceAlongSpline(CurrentDistanceOnSpline, ESplineCoordinateSpace::World);
-	const FRotator Rotation = SplineComponent->GetRotationAtDistanceAlongSpline(CurrentDistanceOnSpline, ESplineCoordinateSpace::World);
+	const FVector ActorLocation = Owner->GetActorLocation();
+	const FVector ClosestLocation = RailSpline->FindLocationClosestToWorldLocation(ActorLocation, ESplineCoordinateSpace::World);
 
-	Owner->SetActorLocationAndRotation(Location, Rotation);
+	if (FVector::DistSquared(ActorLocation, ClosestLocation) > FMath::Square(SnapThreshold))
+	{
+		Owner->SetActorLocation(ClosestLocation);
+	}
 }
 
-void URailMovementComponent::ClampDistanceToSpline()
+void URailMovementComponent::SetSpeed(float NewSpeed)
 {
-	if (!SplineComponent)
-	{
-		CurrentDistanceOnSpline = FMath::Max(0.0f, CurrentDistanceOnSpline);
-		return;
-	}
+	Speed = FMath::Clamp(NewSpeed, MinSpeed, MaxSpeed);
+}
 
-	const float SplineLength = SplineComponent->GetSplineLength();
-	CurrentDistanceOnSpline = FMath::Clamp(CurrentDistanceOnSpline, 0.0f, SplineLength);
+void URailMovementComponent::SetSpline(USplineComponent* NewSpline)
+{
+	RailSpline = NewSpline;
 }
